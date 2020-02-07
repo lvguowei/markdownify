@@ -11,6 +11,24 @@
   [md]
   (.makeHtml showdown-converter md))
 
+(defn copy-to-clipboard
+  ""
+  [s]
+  (let [el (.createElement js/document "textarea")
+        selected (when (pos? (-> js/document .getSelection .-rangeCount))
+                   (-> js/document .getSelection (.getRangeAt 0)))]
+    (set! (.-value el) s)
+    (.setAttribute el "readonly" "")
+    (set! (-> el .-style .-position) "absolute")
+    (set! (-> el .-style .-left) "-9999px")
+    (-> js/document .-body (.appendChild el))
+    (.select el)
+    (.execCommand js/document "copy")
+    (-> js/document .-body (.removeChild el))
+    (when selected
+      (-> js/document .getSelection .removeAllRanges)
+      (-> js/document .getSelection (.addRange selected)))))
+
 (defn app
   ""
   []
@@ -26,14 +44,28 @@
        :value @markdown
        :style {:resize "none"
                :height "500px"
-               :width "100%"}}]]
+               :width "100%"}}]
+     [:button
+      {:on-click #(copy-to-clipboard @markdown)
+       :style {:background-color :green
+               :color :white
+               :border-radius 10
+               :padding "1em"}}
+      "Copy Markdon"]]
 
     [:div
      {:style {:flex "1"
               :padding-left "2em"}}
      [:h2 "HTML Preview"]
      [:div {:style {:height "500px"}
-            :dangerouslySetInnerHTML {:__html (md->html @markdown)}}]]]])
+            :dangerouslySetInnerHTML {:__html (md->html @markdown)}}]
+     [:button
+      {:on-click #(copy-to-clipboard (md->html @markdown))
+       :style {:background-color :green
+               :color :white
+               :border-radius 10
+               :padding "1em"}}
+      "Copy HTML"]]]])
 
 (defn mount!
   ""
