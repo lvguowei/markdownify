@@ -2,7 +2,21 @@
   (:require [reagent.core :as reagent]
             ["showdown" :as showdown]))
 
-(defonce markdown (reagent/atom ""))
+(defonce text-state (reagent/atom {:format :md
+                                   :value ""}))
+
+(defonce flash-message (reagent/atom nil))
+(defonce flash-timeout (reagent/atom nil))
+
+
+(defn flash
+  ""
+  ([text]
+   (flash text 3000))
+  ([text ms]
+   (js/clearTimeout @flash-timeout)
+   (reset! flash-message text)
+   (reset! flash-timeout (js/setTimeout #(reset! flash-message nil) ms))))
 
 (defonce showdown-converter (showdown/Converter.))
 
@@ -10,6 +24,25 @@
   ""
   [md]
   (.makeHtml showdown-converter md))
+
+(defn html->md
+    ""
+    [html]
+  (.makeMarkdown showdown-converter html))
+
+(defn ->md
+  ""
+  [{:keys [format value]}]
+  (case format
+    :md value
+    :html (html->md value)))
+
+(defn ->html
+  ""
+  [{:keys [format value]}]
+  (case format
+    :md (md->html value)
+    :html value))
 
 (defn copy-to-clipboard
   ""
@@ -33,6 +66,21 @@
   ""
   []
   [:div
+   [:div
+    {:style {:position :absolute
+             :margin :auto
+             :left 0
+             :right 0
+             :text-align :center
+             :max-width 250
+             :padding "1em"
+             :border-radius 10
+             :transform (if @flash-message
+                          "scaleY(1)"
+                          "scaleY(0)")
+             :transition "transform 0.2s ease-out"
+             :background-color :yellow}}
+    @flash-message]
    [:h1 "Markdownify"]
    [:div
     {:style {:display :flex}}
@@ -40,13 +88,17 @@
      {:style {:flex "1"}}
      [:h2 "Markdown"]
      [:textarea
-      {:on-change #(reset! markdown (-> % .-target .-value))
-       :value @markdown
+      {:on-change (fn [e]
+                    (reset! text-state {:format :md
+                                        :value (-> e .-target .-value)}))
+       :value (->md @text-state)
        :style {:resize "none"
                :height "500px"
                :width "100%"}}]
      [:button
-      {:on-click #(copy-to-clipboard @markdown)
+      {:on-click (fn []
+                   (copy-to-clipboard (->md @text-state))
+                   (flash "Markdown copied to clipboard!"))
        :style {:background-color :green
                :color :white
                :border-radius 10
@@ -54,18 +106,32 @@
       "Copy Markdon"]]
 
     [:div
-     {:style {:flex "1"
-              :padding-left "2em"}}
-     [:h2 "HTML Preview"]
-     [:div {:style {:height "500px"}
-            :dangerouslySetInnerHTML {:__html (md->html @markdown)}}]
+     {:style {:flex "1"}}
+     [:h2 "HTML"]
+     [:textarea
+      {:on-change (fn [e]
+                    (reset! text-state {:format :html
+                                        :value (-> e .-target .-value)}))
+       :value (->html @text-state)
+       :style {:resize "none"
+               :height "500px"
+               :width "100%"}}]
      [:button
-      {:on-click #(copy-to-clipboard (md->html @markdown))
+      {:on-click (fn []
+                   (copy-to-clipboard (->html @text-state))
+                   (flash "Copied HTML to clipboard!"))
        :style {:background-color :green
                :color :white
                :border-radius 10
                :padding "1em"}}
-      "Copy HTML"]]]])
+      "Copy HTML"]]
+
+    [:div
+     {:style {:flex "1"
+              :padding-left "2em"}}
+     [:h2 "HTML Preview"]
+     [:div {:style {:height "500px"}
+            :dangerouslySetInnerHTML {:__html (->html @text-state)}}]]]])
 
 (defn mount!
   ""
@@ -82,4 +148,3 @@
   ""
   []
   (mount!))
-
